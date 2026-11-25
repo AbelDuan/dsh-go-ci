@@ -1,0 +1,94 @@
+name: Sync upstream into dsh-Go custom
+
+# Upstream (ccch1mneyyy/dsh-Go) released something? This job:
+#   1. fast-forwards the fork's `main` mirror to upstream `main`,
+#   2. merges upstream `main` into `custom` (the branch with the local fixes),
+#   3. dispatches "Build fixed APK" so the APK comes out of the same run.
+# A conflict fails the job, prints the conflict list and leaves `custom` alone —
+# resolve it locally with the checklist in FORK.md §2.
+#
+# It lives here, not in the fork, because GitHub disabled Actions on fork
+# AbelDuan/dsh-Go (any push touching .github/workflows/ does that).
+# Needs the repository secret DSH_GO_PAT: a token with contents:write on
+# AbelDuan/dsh-Go.
+
+on:
+  workflow_dispatch:
+    inputs:
+      build:
+        description: Dispatch the APK build after a successful merge
+        type: boolean
+        default: true
+  schedule:
+    - cron: '23 3 * * *'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  merge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out custom from the fork
+        uses: actions/checkout@v4
+        with:
+          repository: AbelDuan/dsh-Go
+          ref: custom
+          fetch-depth: 0
+          token: ${{ secrets.DSH_GO_PAT }}
+
+      - name: Merge upstream main into custom
+        id: merge
+        run: |
+          set -euo pipefail
+          git config user.name "dsh-go sync"
+          git config user.email "dsh-go-sync@users.noreply.github.com"
+          git remote add upstream https://github.com/ccch1mneyyy/dsh-Go.git
+          git fetch --no-tags upstream main
+          UP=$(git rev-parse --short upstream/main)
+          echo "upstream/main = $UP"
+
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "custom already contains upstream/main ($UP)"
+            echo "merged=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BEHIND=$(git rev-list --count HEAD..upstream/main)
+          echo "custom is $BEHIND commit(s) behind upstream/main"
+
+          git merge --no-edit --no-ff upstream/main || {
+            echo "::error::merge conflict — custom left untouched"
+            git diff --name-only --diff-filter=U | tee /tmp/conflicts.txt
+            {
+              echo "### Merge conflict, nothing pushed"
+              echo ""
+              echo "Resolve with FORK.md §2 (hot spots: PetOverlay.kt, EdgeSnap*.kt, EdgeBeam*.kt, PhoneA11yService.kt, composer_strip.dart, proot-dns.mjs, rtbuild.py)."
+              echo ""
+              echo '```'
+              cat /tmp/conflicts.txt
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            git merge --abort
+            exit 1
+          }
+
+          git push origin HEAD:custom
+          echo "merged=true" >> "$GITHUB_OUTPUT"
+          echo "### Merged upstream/main ($UP) into custom" >> "$GITHUB_STEP_SUMMARY"
+          git --no-pager log --oneline -3 | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Fast-forward the fork's main mirror
+        run: |
+          set -euo pipefail
+          # main is a pure mirror of upstream; force is safe here.
+          git push --force origin upstream/main:refs/heads/main
+          echo "main mirror -> $(git rev-parse --short upstream/main)"
+
+      - name: Dispatch the APK build
+        if: steps.merge.outputs.merged == 'true' && (github.event_name == 'schedule' || inputs.build)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build.yml --repo AbelDuan/dsh-go-ci --ref main
