@@ -128,19 +128,3 @@ jobs:
           path: dsh-Go/app/build/app/outputs/flutter-apk/app-arm64-release.apk
           if-no-files-found: error
           retention-days: 30
-
-      - name: Publish the APK on this repository's release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          APK=dsh-Go/app/build/app/outputs/flutter-apk/app-arm64-release.apk
-          if gh release view dsh-go >/dev/null 2>&1; then
-            gh release upload dsh-go "$APK" --clobber
-          else
-            gh release create dsh-go "$APK" \
-              --title "dsh-Go arm64" \
-              --notes "Built from AbelDuan/dsh-Go custom by AbelDuan/dsh-go-ci. Debug-signed." \
-              --prerelease
-          fi
-          ls -l "$APK"
