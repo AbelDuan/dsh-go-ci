@@ -50,6 +50,10 @@ jobs:
           UP=$(git rev-parse --short upstream/main)
           echo "upstream/main = $UP"
 
+          # main 是纯镜像：先把它快进，即使下面 merge 冲突也保持最新
+          git push --force origin upstream/main:refs/heads/main
+          echo "main mirror -> $(git rev-parse --short upstream/main)"
+
           if git merge-base --is-ancestor upstream/main HEAD; then
             echo "custom already contains upstream/main ($UP)"
             echo "merged=false" >> "$GITHUB_OUTPUT"
@@ -79,13 +83,6 @@ jobs:
           echo "merged=true" >> "$GITHUB_OUTPUT"
           echo "### Merged upstream/main ($UP) into custom" >> "$GITHUB_STEP_SUMMARY"
           git --no-pager log --oneline -3 | tee -a "$GITHUB_STEP_SUMMARY"
-
-      - name: Fast-forward the fork's main mirror
-        run: |
-          set -euo pipefail
-          # main is a pure mirror of upstream; force is safe here.
-          git push --force origin upstream/main:refs/heads/main
-          echo "main mirror -> $(git rev-parse --short upstream/main)"
 
       - name: Dispatch the APK build
         if: steps.merge.outputs.merged == 'true' && (github.event_name == 'schedule' || inputs.build)
