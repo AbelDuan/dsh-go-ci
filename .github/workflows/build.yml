@@ -114,8 +114,8 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
           set -euo pipefail
-          REPO_KEY=dsh-Go/tooling/keys/dsh-go-release.keystore
-          REPO_PWF=dsh-Go/tooling/keys/password.txt
+          REPO_KEY=tooling/keys/dsh-go-release.keystore
+          REPO_PWF=tooling/keys/password.txt
           if [ -f "$REPO_KEY" ] && [ -f "$REPO_PWF" ]; then
             STORE="$GITHUB_WORKSPACE/$REPO_KEY"
             PW=$(tr -d '\n' < "$REPO_PWF")
@@ -134,7 +134,7 @@ jobs:
             echo "storePassword=$PW"
             echo "keyAlias=dshgo"
             echo "keyPassword=$PW"
-          } > dsh-Go/app/android/key.properties
+          } > app/android/key.properties
           echo "release key configured"
 
       - name: Build the arm64 runtime
