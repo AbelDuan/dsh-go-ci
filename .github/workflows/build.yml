@@ -117,7 +117,7 @@ jobs:
           REPO_KEY=tooling/keys/dsh-go-release.keystore
           REPO_PWF=tooling/keys/password.txt
           if [ -f "$REPO_KEY" ] && [ -f "$REPO_PWF" ]; then
-            STORE="$GITHUB_WORKSPACE/$REPO_KEY"
+            STORE="$(pwd)/$REPO_KEY"
             PW=$(tr -d '\n' < "$REPO_PWF")
             echo "signing with the key committed in the repository"
           elif [ -n "${KEYSTORE_B64:-}" ]; then
@@ -135,7 +135,9 @@ jobs:
             echo "keyAlias=dshgo"
             echo "keyPassword=$PW"
           } > app/android/key.properties
-          echo "release key configured"
+          test -f "$STORE"
+          keytool -list -keystore "$STORE" -storepass "$PW" -alias dshgo >/dev/null
+          echo "release key configured: $STORE"
 
       - name: Build the arm64 runtime
         run: |
