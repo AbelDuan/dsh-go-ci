@@ -112,20 +112,28 @@ jobs:
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          if [ -z "${KEYSTORE_B64:-}" ]; then
-            echo "::warning::no keystore secret; this build is debug-signed and may not install over the phone"
+          REPO_KEY=dsh-Go/tooling/keys/dsh-go-release.keystore
+          REPO_PWF=dsh-Go/tooling/keys/password.txt
+          if [ -f "$REPO_KEY" ] && [ -f "$REPO_PWF" ]; then
+            STORE="$GITHUB_WORKSPACE/$REPO_KEY"
+            PW=$(tr -d '\n' < "$REPO_PWF")
+            echo "signing with the key committed in the repository"
+          elif [ -n "${KEYSTORE_B64:-}" ]; then
+            STORE="$RUNNER_TEMP/dsh-go-release.jks"
+            printf '%s' "$KEYSTORE_B64" | base64 -d > "$STORE"
+            PW="$KEYSTORE_PASSWORD"
+            echo "signing with the keystore secret"
+          else
+            echo "::warning::no release key available; this build is debug-signed and may not install over the phone"
             exit 0
           fi
-          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/dsh-go-release.jks"
           {
-            echo "storeFile=$RUNNER_TEMP/dsh-go-release.jks"
-            echo "storePassword=$KEYSTORE_PASSWORD"
-            echo "keyAlias=$KEY_ALIAS"
-            echo "keyPassword=$KEY_PASSWORD"
+            echo "storeFile=$STORE"
+            echo "storePassword=$PW"
+            echo "keyAlias=dshgo"
+            echo "keyPassword=$PW"
           } > dsh-Go/app/android/key.properties
           echo "release key configured"
 
