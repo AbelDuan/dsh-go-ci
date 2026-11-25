@@ -108,6 +108,27 @@ jobs:
           key: pub-${{ hashFiles('dsh-Go/app/pubspec.lock', 'dsh-Go/packages/**/pubspec.lock') }}
           restore-keys: pub-
 
+      - name: Use the fork's release key
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_B64:-}" ]; then
+            echo "::warning::no keystore secret; this build is debug-signed and may not install over the phone"
+            exit 0
+          fi
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/dsh-go-release.jks"
+          {
+            echo "storeFile=$RUNNER_TEMP/dsh-go-release.jks"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > dsh-Go/app/android/key.properties
+          echo "release key configured"
+
       - name: Build the arm64 runtime
         run: |
           set -euo pipefail
